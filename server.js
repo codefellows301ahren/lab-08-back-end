@@ -15,6 +15,7 @@ client.connect();
 client.on('error', err => console.error(err));
 
 
+
 function lookupLoc(location){
   const SQL = `SELECT * FROM locations WHERE search_query=$1;`;
   const values = [location];
