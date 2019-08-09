@@ -1,18 +1,44 @@
 'use strict';
 
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const superagent = require(`superagent`);
 const pg = require('pg');
-const app = express();
+
+require('dotenv').config();
+
 const PORT = process.env.PORT || 3000;
-let currentLoc = null;
 
 // database setup
 const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
 client.on('error', err => console.error(err));
+
+const app = express();
+
+let currentLoc = null;
+
+
+
+app.use(express.static('./public'));
+app.use(cors());
+
+// API ROUTES
+
+// This runs first!!!!!
+app.get('/location', (request, response) => {
+  console.log(request.query.data, 'lalalalal')
+  response.send(lookupLoc(request.query.data));
+})
+
+app.get('/weather', (currentLoc, response) => {
+  darkskyWeather(currentLoc.query.data.latitude, currentLoc.query.data.longitude)
+    .then(weather => {
+      response.send(weather);
+    })
+})
+
+app.get('/events',(getEvent));
 
 
 
@@ -30,13 +56,7 @@ function lookupLoc(location){
       }else{
       // create it
       // insert data
-
-        const SQL =`INSERT INT0 locations (search_query, formatted_address, latitude,longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
-        const values = [location.search_query, location.formatted_address, location.latitude, location.longitude];
-        console.log(location);
-        return client.query(SQL,values)
-          .then(result =>{
-            console.log(result);
+        return serchToLatLong(request.query.data)
           })
       }
     })
@@ -49,7 +69,12 @@ function Location(request, geoData) {
   this.formatted_address = geoData.body.results[0].formatted_address;
   this.latitude = Number(geoData.body.results[0].geometry.location.lat);
   this.longitude = Number(geoData.body.results[0].geometry.location.lng);
+}
 
+Location.prototype.save = function() {
+  const SQL =`INSERT INT0 locations (search_query, formatted_address, latitude,longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
+  const values = Object.values(this);
+  return client.query(SQL,values)
 }
 
 function EventData(request){
@@ -69,6 +94,10 @@ function serchToLatLong(query){
   return superagent.get(url)
     .then(res => {
       currentLoc = new Location(query, res);
+      location.save().then( result => {
+        console.log(result.row[0].id, 'moooooooooooo')
+        location.id= result.row[0].id;
+      })
       return currentLoc;
     })
 }
@@ -97,25 +126,5 @@ function getEvent(request, response){
 }
 
 
-
-app.use(express.static('./public'));
-app.use(cors());
-
-// API ROUTES
-app.get('/location', (request, response) => {
-  lookupLoc(request.query.data);
-
-  serchToLatLong(request.query.data)//Serch box entry
-    .then(location => response.send(location));
-})
-
-app.get('/weather', (currentLoc, response) => {
-  darkskyWeather(currentLoc.query.data.latitude, currentLoc.query.data.longitude)
-    .then(weather => {
-      response.send(weather);
-    })
-})
-
-app.get('/events',(getEvent));
 
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`));
